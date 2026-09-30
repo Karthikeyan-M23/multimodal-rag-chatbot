@@ -1,0 +1,26 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment / secrets
+.env
+
+# Generated application data
+data/uploads/*
+data/processed/*
+vectorstore/*
+
+# Keep directory structure
+!data/uploads/.gitkeep
+!data/processed/.gitkeep
+!vectorstore/.gitkeep
+
+# IDE / editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
