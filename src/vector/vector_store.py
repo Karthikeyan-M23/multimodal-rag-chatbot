@@ -3,7 +3,7 @@ from pathlib import Path
 from langchain_community.vectorstores import FAISS
 
 
-VECTORSTORE_PATH = "vectorstore/fitness_index"
+VECTORSTORE_PATH = "vectorstore/current_index"
 
 
 def create_vector_store(chunks, embeddings):
