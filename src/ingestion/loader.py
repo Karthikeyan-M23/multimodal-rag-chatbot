@@ -7,6 +7,7 @@ from src.ingestion.image_processor import extract_image_content
 from src.ingestion.audio_processor import extract_audio_content
 from src.ingestion.video_processor import extract_video_content
 from src.ingestion.web_processor import extract_web_content
+from src.ingestion.html_processor import extract_html_content
 
 
 def load_document(file_path: str) -> list[dict]:
@@ -57,6 +58,10 @@ def load_document(file_path: str) -> list[dict]:
 
         return extract_video_content(file_path)
 
+
+    elif extension in {".html", ".htm"}:
+
+        return extract_html_content(file_path)
     else:
 
         raise ValueError(

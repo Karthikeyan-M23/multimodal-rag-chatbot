@@ -31,6 +31,8 @@ SUPPORTED_TYPES = [
     "mov",
     "mkv",
     "webm",
+    "html",
+    "htm",
 ]
 
 
