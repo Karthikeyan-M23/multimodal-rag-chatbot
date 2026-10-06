@@ -1,5 +1,4 @@
 from pathlib import Path
-from urllib.parse import urlparse
 
 from src.ingestion.pdf_processor import extract_pdf_pages
 from src.ingestion.document_processor import extract_docx_content
@@ -11,64 +10,41 @@ from src.ingestion.html_processor import extract_html_content
 
 
 def load_document(file_path: str) -> list[dict]:
-
     path = Path(file_path)
 
     if not path.exists():
-        raise FileNotFoundError(
-            f"File not found: {file_path}"
-        )
+        raise FileNotFoundError(f"File not found: {file_path}")
 
     extension = path.suffix.lower()
 
     if extension == ".pdf":
-
         return extract_pdf_pages(file_path)
 
-    elif extension == ".docx":
-
+    if extension == ".docx":
         return extract_docx_content(file_path)
 
-    elif extension in {
-        ".png",
-        ".jpg",
-        ".jpeg",
-        ".webp",
-    }:
-
+    if extension in {".png", ".jpg", ".jpeg", ".webp"}:
         return extract_image_content(file_path)
 
-    elif extension in {
-        ".mp3",
-        ".wav",
-        ".m4a",
-        ".aac",
-        ".flac",
-    }:
-
+    if extension in {".mp3", ".wav", ".m4a", ".aac", ".flac"}:
         return extract_audio_content(file_path)
 
-    elif extension in {
-        ".mp4",
-        ".avi",
-        ".mov",
-        ".mkv",
-        ".webm",
-    }:
-
+    if extension in {".mp4", ".avi", ".mov", ".mkv", ".webm"}:
         return extract_video_content(file_path)
 
+<<<<<<< Updated upstream
 
     elif extension in {".html", ".htm"}:
 
         return extract_html_content(file_path)
     else:
+=======
+    if extension in {".html", ".htm"}:
+        return extract_html_content(file_path)
+>>>>>>> Stashed changes
 
-        raise ValueError(
-            f"Unsupported file type: {extension}"
-        )
+    raise ValueError(f"Unsupported file type: {extension}")
 
 
 def load_web_document(url: str) -> list[dict]:
-
     return extract_web_content(url)

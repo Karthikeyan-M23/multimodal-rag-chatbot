@@ -2,7 +2,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
 def create_chunks(documents: list[dict]) -> list[dict]:
-    text_splitter = RecursiveCharacterTextSplitter(
+    splitter = RecursiveCharacterTextSplitter(
         chunk_size=500,
         chunk_overlap=100,
         length_function=len,
@@ -12,24 +12,43 @@ def create_chunks(documents: list[dict]) -> list[dict]:
     chunks = []
 
     for document in documents:
-        document_chunks = text_splitter.split_text(document["text"])
+        text = document["text"]
+        metadata = document["metadata"].copy()
 
-        for chunk_index, chunk_text in enumerate(document_chunks):
+        if metadata.get("record_type") == "html_table_row":
+            source = metadata.get("source", "unknown")
+            table_index = metadata.get("table_index", 0)
+            row_index = metadata.get("row_index", 0)
 
-            metadata = document["metadata"].copy()
+            chunks.append(
+                {
+                    "text": text,
+                    "metadata": {
+                        **metadata,
+                        "chunk_id": (
+                            f"{source}_table_{table_index}"
+                            f"_row_{row_index}"
+                        ),
+                        "chunk_index": row_index,
+                    },
+                }
+            )
+            continue
 
-            source = metadata["source"]
+        for chunk_index, chunk_text in enumerate(
+            splitter.split_text(text)
+        ):
+            source = metadata.get("source", "unknown")
 
-            chunks.append({
-                "text": chunk_text,
-                "metadata": {
-                    **metadata,
-                    "chunk_id": (
-                        f"{source}"
-                        f"_chunk_{chunk_index}"
-                    ),
-                    "chunk_index": chunk_index,
-                },
-            })
+            chunks.append(
+                {
+                    "text": chunk_text,
+                    "metadata": {
+                        **metadata,
+                        "chunk_id": f"{source}_chunk_{chunk_index}",
+                        "chunk_index": chunk_index,
+                    },
+                }
+            )
 
     return chunks

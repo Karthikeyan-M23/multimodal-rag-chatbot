@@ -1,8 +1,11 @@
 from langchain_ollama import ChatOllama
 
+from config.settings import OLLAMA_BASE_URL, OLLAMA_MODEL
+
 
 def get_llm():
     return ChatOllama(
-        model="llama3.2:3b",
+        base_url=OLLAMA_BASE_URL,
+        model=OLLAMA_MODEL,
         temperature=0,
     )

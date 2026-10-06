@@ -6,11 +6,6 @@ def validate_evidence(
     min_documents=1,
     max_distance=MAX_DISTANCE,
 ):
-    """
-    Validate whether retrieved documents contain
-    sufficiently relevant evidence.
-    """
-
     if not documents:
         return {
             "sufficient": False,
@@ -34,7 +29,7 @@ def validate_evidence(
         for document in valid_documents
         if document.metadata.get(
             "distance_score",
-            float("inf")
+            float("inf"),
         ) <= max_distance
     ]
 

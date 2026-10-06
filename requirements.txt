@@ -1,4 +1,7 @@
-streamlit
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
 
 langchain
 langchain-community
@@ -7,22 +10,26 @@ langchain-huggingface
 langchain-text-splitters
 
 pymupdf
+python-docx
 
-faiss-cpu
+pillow
+pytesseract
+
+faster-whisper
 
 sentence-transformers
 torch
 torchvision
 
+faiss-cpu
+
 python-dotenv
-
-
-python-docx
-
-pytesseract
-Pillow
-
-faster-whisper
-
-beautifulsoup4
 requests
+beautifulsoup4
+
+
+fastapi
+uvicorn
+python-multipart
+
+rank-bm25

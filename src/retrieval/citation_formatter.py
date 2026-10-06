@@ -2,172 +2,82 @@ from pathlib import Path
 
 
 def format_timestamp(seconds):
-    """Convert seconds into MM:SS format."""
-
     if seconds is None:
         return "Unknown time"
 
     seconds = float(seconds)
-
     minutes = int(seconds // 60)
-    remaining_seconds = int(seconds % 60)
+    remaining = int(seconds % 60)
 
-    return f"{minutes:02d}:{remaining_seconds:02d}"
+    return f"{minutes:02d}:{remaining:02d}"
 
 
 def format_source(metadata):
-    """
-    Convert source metadata into a human-readable citation.
-    """
-
-    source = metadata.get(
-        "source",
-        "Unknown source",
-    )
-
-    file_type = metadata.get(
-        "file_type",
-        "unknown",
-    )
-
-    # -----------------------------
-    # PDF
-    # -----------------------------
+    source = metadata.get("source", "Unknown source")
+    file_type = metadata.get("file_type", "unknown")
 
     if file_type == "pdf":
-
-        filename = Path(source).name
-
-        page = metadata.get(
-            "page",
-            "Unknown",
+        return (
+            f"{Path(source).name} — "
+            f"Page {metadata.get('page', 'Unknown')}"
         )
-
-        return f"{filename} — Page {page}"
-
-    # -----------------------------
-    # DOCX
-    # -----------------------------
 
     if file_type == "docx":
-
-        filename = Path(source).name
-
-        paragraph = metadata.get(
-            "paragraph",
-            "Unknown",
-        )
-
         return (
-            f"{filename} — "
-            f"Paragraph {paragraph}"
+            f"{Path(source).name} — "
+            f"Paragraph {metadata.get('paragraph', 'Unknown')}"
         )
-
-    # -----------------------------
-    # Image
-    # -----------------------------
 
     if file_type == "image":
-
-        filename = Path(source).name
-
-        return filename
-
-    # -----------------------------
-    # Audio
-    # -----------------------------
+        return Path(source).name
 
     if file_type == "audio":
-
-        filename = Path(source).name
-
-        start = format_timestamp(
-            metadata.get("start_time")
-        )
-
-        end = format_timestamp(
-            metadata.get("end_time")
-        )
-
         return (
-            f"{filename} — "
-            f"{start}–{end}"
+            f"{Path(source).name} — "
+            f"{format_timestamp(metadata.get('start_time'))}–"
+            f"{format_timestamp(metadata.get('end_time'))}"
         )
-
-    # -----------------------------
-    # Video
-    # -----------------------------
 
     if file_type == "video":
-
-        filename = Path(source).name
-
-        content_type = metadata.get(
-            "content_type"
-        )
-
-        if content_type == "transcript":
-
-            start = format_timestamp(
-                metadata.get("start_time")
-            )
-
-            end = format_timestamp(
-                metadata.get("end_time")
-            )
-
+        if metadata.get("content_type") == "transcript":
             return (
-                f"{filename} — "
-                f"{start}–{end}"
+                f"{Path(source).name} — "
+                f"{format_timestamp(metadata.get('start_time'))}–"
+                f"{format_timestamp(metadata.get('end_time'))}"
             )
-
-        timestamp = format_timestamp(
-            metadata.get("timestamp")
-        )
 
         return (
-            f"{filename} — "
-            f"Frame at {timestamp}"
+            f"{Path(source).name} — Frame at "
+            f"{format_timestamp(metadata.get('timestamp'))}"
         )
-
-    # -----------------------------
-    # Website
-    # -----------------------------
 
     if file_type == "web":
-
-        title = metadata.get(
-            "title",
-            "Web page",
+        return (
+            f"{metadata.get('title', 'Web page')} — "
+            f"{metadata.get('url', source)}"
         )
 
-        url = metadata.get(
-            "url",
-            source,
-        )
-
-        return f"{title} — {url}"
-
-    # -----------------------------
-    # Fallback
-    # -----------------------------
+    if file_type == "html":
+        if metadata.get("record_type") == "html_table_row":
+            return (
+                f"{Path(source).name} — "
+                f"{metadata.get('git_script', 'table row')}"
+            )
+        return f"{metadata.get('title', Path(source).name)} — {source}"
 
     return Path(source).name
 
 
 def get_unique_citations(documents):
-    """
-    Create unique human-readable citations
-    from retrieved documents.
-    """
-
     citations = []
 
     for document in documents:
+        if hasattr(document, "metadata"):
+            metadata = document.metadata
+        else:
+            metadata = document.get("metadata", {})
 
-        citation = format_source(
-            document.metadata
-        )
+        citation = format_source(metadata)
 
         if citation not in citations:
             citations.append(citation)

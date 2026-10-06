@@ -5,14 +5,9 @@ from bs4 import BeautifulSoup
 
 
 def extract_web_content(url: str) -> list[dict]:
-    """
-    Fetch a webpage and convert its useful text into
-    the same document structure used by our other processors.
-    """
+    parsed = urlparse(url)
 
-    parsed_url = urlparse(url)
-
-    if parsed_url.scheme not in {"http", "https"}:
+    if parsed.scheme not in {"http", "https"}:
         raise ValueError(
             "URL must start with http:// or https://"
         )
@@ -22,10 +17,8 @@ def extract_web_content(url: str) -> list[dict]:
         timeout=20,
         headers={
             "User-Agent": (
-                "Mozilla/5.0 "
-                "(Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 "
-                "(KHTML, like Gecko) "
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/153.0 Safari/537.36"
             )
         },
@@ -38,31 +31,13 @@ def extract_web_content(url: str) -> list[dict]:
         "html.parser",
     )
 
-    # Remove elements that generally don't contain
-    # useful article/document content.
     for element in soup(
-        [
-            "script",
-            "style",
-            "noscript",
-            "nav",
-            "footer",
-            "header",
-            "aside",
-        ]
+        ["script", "style", "noscript", "nav", "footer", "header", "aside"]
     ):
         element.decompose()
 
-    title = (
-        soup.title.get_text(strip=True)
-        if soup.title
-        else url
-    )
-
-    text = soup.get_text(
-        separator="\n",
-        strip=True,
-    )
+    title = soup.title.get_text(strip=True) if soup.title else url
+    text = soup.get_text(separator="\n", strip=True)
 
     if not text:
         raise ValueError(

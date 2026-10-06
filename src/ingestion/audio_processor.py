@@ -1,28 +1,29 @@
-from pathlib import Path
 from faster_whisper import WhisperModel
 
 
 MODEL_SIZE = "tiny"
 
+_model = None
+
 
 def get_whisper_model():
-    return WhisperModel(
-        MODEL_SIZE,
-        device="cpu",
-        compute_type="int8",
-    )
+    global _model
+
+    if _model is None:
+        _model = WhisperModel(
+            MODEL_SIZE,
+            device="cpu",
+            compute_type="int8",
+        )
+
+    return _model
 
 
 def extract_audio_content(file_path: str) -> list[dict]:
-    path = Path(file_path)
-
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {file_path}")
-
     model = get_whisper_model()
 
-    segments, info = model.transcribe(
-        str(path),
+    segments, _ = model.transcribe(
+        str(file_path),
         vad_filter=True,
     )
 
@@ -34,14 +35,16 @@ def extract_audio_content(file_path: str) -> list[dict]:
         if not text:
             continue
 
-        content.append({
-            "text": text,
-            "metadata": {
-                "source": file_path,
-                "file_type": "audio",
-                "start_time": round(segment.start, 2),
-                "end_time": round(segment.end, 2),
-            },
-        })
+        content.append(
+            {
+                "text": text,
+                "metadata": {
+                    "source": file_path,
+                    "file_type": "audio",
+                    "start_time": round(segment.start, 2),
+                    "end_time": round(segment.end, 2),
+                },
+            }
+        )
 
     return content

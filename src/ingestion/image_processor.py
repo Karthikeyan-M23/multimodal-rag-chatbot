@@ -1,24 +1,22 @@
 from pathlib import Path
+import os
 
 from PIL import Image
 import pytesseract
 
 
-TESSERACT_PATH = (
-    r"C:\Users\c_karthikeyanm.TPNYC.000"
-    r"\AppData\Local\Tesseract-OCR\tesseract.exe"
-)
+# Use the Tesseract executable from the current Windows user's
+# LOCALAPPDATA directory.
+TESSERACT_PATH = Path(
+    os.environ.get("LOCALAPPDATA", "")
+) / "Tesseract-OCR" / "tesseract.exe"
 
-pytesseract.pytesseract.tesseract_cmd = TESSERACT_PATH
+if TESSERACT_PATH.exists():
+    pytesseract.pytesseract.tesseract_cmd = str(TESSERACT_PATH)
 
 
 def extract_image_content(file_path: str) -> list[dict]:
-    path = Path(file_path)
-
-    if not path.exists():
-        raise FileNotFoundError(f"File not found: {file_path}")
-
-    image = Image.open(path)
+    image = Image.open(file_path)
 
     text = pytesseract.image_to_string(image).strip()
 
