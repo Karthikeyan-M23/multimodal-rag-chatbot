@@ -1,80 +1,234 @@
+import re
+
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+from config import settings
+from src.generation.prompts import (
+    ABSTAIN,
+    REWRITE_PROMPT,
+    SYSTEM_PROMPT,
+    user_message,
+)
+from src.providers import build_config, get_llm
+from src.retrieval.citation_formatter import location_label, source_name
 from src.vector.vector_retriever import retrieve_documents
-from src.retrieval.evidence_validator import validate_evidence
-from src.generation.llm import get_llm
-from src.generation.prompts import RAG_PROMPT
-from src.retrieval.query_parser import parse_structured_query
-from src.retrieval.structured_retriever import retrieve_structured_chunks
-from src.retrieval.structured_answer import build_structured_answer
-from src.retrieval.query_expander import expand_query
-
-ABSTAIN = "The information is not available in the uploaded documents."
 
 
-def format_context(documents):
-    return "\n\n".join(
-        f"Source: {document.metadata}\n\nContent:\n{document.page_content}"
-        for document in documents
+HISTORY_MESSAGES = 4
+
+HISTORY_MESSAGE_CHARS = 600
+
+SNIPPET_CHARS = 400
+
+# Words that usually mean the question depends on earlier turns.
+FOLLOW_UP = re.compile(
+    r"\b(it|its|it's|they|them|their|theirs|this|that|these|those|he|she|"
+    r"him|her|his|hers|there|same|above|previous|former|latter|else)\b"
+    r"|^\s*(and|also|what about|how about|why|more|then)\b",
+    re.IGNORECASE,
+)
+
+
+def needs_rewrite(question: str) -> bool:
+    return bool(FOLLOW_UP.search(question)) or len(question.split()) <= 3
+
+
+def rewrite_query(config, question: str, history: list[dict]) -> str:
+    """Turn a follow-up ("what about its budget?") into a standalone query."""
+
+    if not settings.QUERY_REWRITE or not history or not needs_rewrite(question):
+        return question
+
+    transcript = "\n".join(
+        f"{message['role'].upper()}: {message['content'][:500]}"
+        for message in history[-4:]
     )
 
+    try:
+        response = get_llm(config).invoke(
+            REWRITE_PROMPT.format(history=transcript, question=question)
+        )
+    except Exception:
+        return question
 
-def build_conversation_context(chat_history, limit=6):
-    if not chat_history:
-        return ""
-    recent = chat_history[-limit:]
-    return "\n".join(
-        f"{message['role'].upper()}: {message['content']}"
-        for message in recent
-    )
+    rewritten = str(response.content).strip().strip('"').splitlines()
+
+    if not rewritten or not rewritten[0].strip() or len(rewritten[0]) > 300:
+        return question
+
+    return rewritten[0].strip()
 
 
-def generate_answer(vector_store, question: str, k: int = 5, chunks=None, chat_history=None,bm25_retriever=None):
-    parsed_query = parse_structured_query(question)
+def limit_context(documents, max_chars: int):
+    """Best-first documents until the evidence budget is used (always >= 1)."""
 
-    if parsed_query["is_structured"] and chunks:
-        results = retrieve_structured_chunks(chunks, parsed_query)
-        return {
-            "answer": build_structured_answer(results, parsed_query),
-            "documents": results,
-            "evidence": {
-                "sufficient": bool(results),
-                "reason": "Exact metadata filtering was used for a structured query.",
-            },
-            "query_type": "structured",
-            "parsed_query": parsed_query,
-        }
+    kept = []
+    used = 0
 
-    expanded_queries = expand_query(question)
+    for document in documents:
 
-    documents = retrieve_documents(
+        size = len(document.page_content)
+
+        if kept and used + size > max_chars:
+            break
+
+        kept.append(document)
+        used += size
+
+    return kept
+
+
+def to_sources(documents) -> list[dict]:
+    """Numbered evidence entries; numbers match the [n] citations."""
+
+    sources = []
+
+    for number, document in enumerate(documents, start=1):
+
+        metadata = document.metadata
+
+        sources.append(
+            {
+                "n": number,
+                "source_id": metadata.get("source_id"),
+                "name": source_name(metadata),
+                "location": location_label(metadata),
+                "file_type": metadata.get("file_type"),
+                "page": metadata.get("page"),
+                "start_time": metadata.get("start_time"),
+                "url": metadata.get("url"),
+                "youtube_id": metadata.get("youtube_id"),
+                "score": round(
+                    float(
+                        metadata.get(
+                            "rerank_score",
+                            metadata.get("rrf_score", 0.0),
+                        )
+                    ),
+                    4,
+                ),
+                "snippet": document.page_content[:SNIPPET_CHARS],
+                "text": document.page_content,
+            }
+        )
+
+    return sources
+
+
+def build_messages(question: str, sources: list[dict], history: list[dict]):
+
+    messages = [SystemMessage(content=SYSTEM_PROMPT)]
+
+    for message in history[-HISTORY_MESSAGES:]:
+
+        content = message["content"][:HISTORY_MESSAGE_CHARS]
+
+        if message["role"] == "user":
+            messages.append(HumanMessage(content=content))
+        else:
+            messages.append(AIMessage(content=content))
+
+    messages.append(HumanMessage(content=user_message(question, sources)))
+
+    return messages
+
+
+def public_sources(sources: list[dict]) -> list[dict]:
+    """Sources without the full chunk text (sent to the browser / stored)."""
+
+    return [
+        {key: value for key, value in source.items() if key != "text"}
+        for source in sources
+    ]
+
+
+def stream_answer(config, search, question: str, history: list[dict] | None = None):
+    """
+    search(query) -> relevant Documents, best first.
+
+    Yields events:
+      {"type": "sources", "sources": [...]}
+      {"type": "token", "text": "..."}
+      {"type": "done", "answer": "..."}
+    """
+
+    history = history or []
+
+    query = rewrite_query(config, question, history)
+
+    documents = limit_context(search(query, question), settings.MAX_CONTEXT_CHARS)
+
+    sources = to_sources(documents)
+
+    yield {"type": "sources", "sources": public_sources(sources), "query": query}
+
+    if not sources:
+        yield {"type": "token", "text": ABSTAIN}
+        yield {"type": "done", "answer": ABSTAIN}
+        return
+
+    # Earlier turns only help follow-ups; for standalone questions they
+    # cost prompt time and distract small local models.
+    context_history = history if needs_rewrite(question) else []
+
+    answer = []
+
+    for chunk in get_llm(config).stream(build_messages(question, sources, context_history)):
+
+        text = chunk.content if isinstance(chunk.content, str) else ""
+
+        if text:
+            answer.append(text)
+            yield {"type": "token", "text": text}
+
+    text = "".join(answer).strip()
+
+    done = {"type": "done", "answer": text}
+
+    # The model looked at the evidence and found nothing relevant:
+    # don't present those passages as sources.
+    if text.startswith(ABSTAIN[:30]):
+        done["sources"] = []
+
+    yield done
+
+
+def generate_answer(
     vector_store,
-    question,
-    k=k,
-    expanded_queries=expanded_queries,
-    bm25_retriever=bm25_retriever,
-    )
-    evidence_check = validate_evidence(documents)
+    question: str,
+    k: int = 5,
+    chunks=None,
+    chat_history=None,
+    bm25_retriever=None,
+    config=None,
+):
+    """Non-streaming answer (used by app.py)."""
 
-    if not evidence_check["sufficient"]:
-        return {
-            "answer": ABSTAIN,
-            "documents": [],
-            "evidence": evidence_check,
-            "query_type": "semantic",
-            "parsed_query": parsed_query,
-        }
+    config = config or build_config()
 
-    relevant_documents = evidence_check["relevant_documents"]
-    context = format_context(relevant_documents)
-    conversation_context = build_conversation_context(chat_history or [])
-    if conversation_context:
-        context = f"Recent conversation:\n{conversation_context}\n\nRetrieved evidence:\n{context}"
+    def search(query, original):
+        return retrieve_documents(
+            vector_store,
+            query,
+            k=k,
+            expanded_queries=[original],
+            bm25_retriever=bm25_retriever,
+        )
 
-    prompt = RAG_PROMPT.format(context=context, question=question)
-    response = get_llm().invoke(prompt)
+    sources = []
+    documents = []
+    answer = ""
+
+    for event in stream_answer(config, search, question, chat_history):
+
+        if event["type"] == "sources":
+            sources = event["sources"]
+
+        if event["type"] == "done":
+            answer = event["answer"]
+
     return {
-        "answer": response.content,
-        "documents": relevant_documents,
-        "evidence": evidence_check,
-        "query_type": "semantic",
-        "parsed_query": parsed_query,
+        "answer": answer,
+        "sources": sources,
+        "documents": documents,
     }

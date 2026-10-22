@@ -6,7 +6,7 @@ from src.embeddings.embedding_service import get_embedding_model
 from src.vector.vector_store import create_vector_store, save_vector_store
 from src.retrieval.bm25_retriever import BM25Retriever
 
-def build_knowledge_base(file_paths=None, urls=None):
+def build_knowledge_base(file_paths=None, urls=None, index_path=None):
     file_paths = file_paths or []
     urls = urls or []
 
@@ -44,7 +44,10 @@ def build_knowledge_base(file_paths=None, urls=None):
         embeddings,
     )
 
-    save_vector_store(vector_store)
+    if index_path:
+        save_vector_store(vector_store, path=str(index_path))
+    else:
+        save_vector_store(vector_store)
 
     return {
         "vector_store": vector_store,

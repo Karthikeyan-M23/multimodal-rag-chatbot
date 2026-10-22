@@ -6,3 +6,8 @@ data/uploads/*
 data/processed/*
 vectorstore/*
 .vscode/
+data/app.db
+data/.jwt_secret
+.pytest_cache/
+data/.encryption_key
+data/app.db-*

@@ -1,11 +1,7 @@
-from langchain_ollama import ChatOllama
-
-from config.settings import OLLAMA_BASE_URL, OLLAMA_MODEL
+from src.providers import build_config, get_llm as _get_llm
 
 
-def get_llm():
-    return ChatOllama(
-        base_url=OLLAMA_BASE_URL,
-        model=OLLAMA_MODEL,
-        temperature=0,
-    )
+def get_llm(config=None):
+    """Chat model for the given ProviderConfig (server defaults if None)."""
+
+    return _get_llm(config or build_config())

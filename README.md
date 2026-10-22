@@ -1,84 +1,35 @@
-# Multimodal RAG Chatbot — HTML/CSS/JS + FastAPI
+# Multimodal RAG
 
-A local-first multimodal RAG chatbot with a custom ChatGPT-style frontend and FastAPI backend. The existing RAG pipeline remains the core intelligence layer, so the UI can evolve independently.
+A multi-user knowledge assistant. Upload PDFs, Word, Excel/CSV, images, audio, video, HTML, websites or YouTube videos, then ask questions. Answers are grounded only in your sources and cite the exact page, sheet rows, timestamp or section.
 
-## Architecture
+Runs fully local (Ollama + local embeddings) or on OpenAI (or any OpenAI-compatible API). Each user chooses in **Settings**.
 
-```text
-Browser (HTML/CSS/JS)
-        |
-        v
-FastAPI
-  |--- /api/session
-  |--- /api/knowledge/process
-  |--- /api/knowledge/status
-  |--- /api/chat
-  |--- /api/knowledge/{session_id}
-        |
-        v
-Existing RAG backend
-  |
-  +-- Ingestion
-  |    PDF / DOCX / Image / Audio / Video / HTML / Web
-  |
-  +-- Processing
-  |    Normalized records -> chunks + metadata
-  |
-  +-- Embeddings
-  |    BAAI/bge-base-en-v1.5
-  |
-  +-- Retrieval
-  |    Structured metadata filtering OR FAISS semantic search
-  |
-  +-- Evidence gate
-  |    No sufficient evidence -> abstain
-  |
-  +-- Generation
-       Ollama local LLM
-```
+## Features
 
-## Supported sources
+- **Sources**: PDF (scanned pages are OCR'd), DOCX (sections + tables), XLSX/CSV, images (OCR + vision description), audio (Whisper transcript), video (transcript + keyframe OCR/description), HTML, websites (including linked PDFs), YouTube (captions with timestamps and chapters; falls back to downloading and transcribing the audio), TXT/MD.
+- **Retrieval**: hybrid vector (FAISS) + keyword (BM25) search, reciprocal rank fusion, cross-encoder reranking (`BAAI/bge-reranker-base`), relevance cutoff that refuses to answer from unrelated passages. Follow-up questions ("what is its budget?") are rewritten before searching.
+- **Answers**: streamed token by token with numbered citations `[n]`. Clicking a citation opens the passage, and plays audio/video/YouTube from the cited timestamp or opens a PDF at the page.
+- **Library**: per-user, additive. Sources are processed in the background with live status, and can be removed or retried.
+- **Chats**: separate conversations, grouped by date, each with its own history. Each chat can be limited to chosen sources ("Search in" picker under the message box); the choice is remembered per chat.
+- **Accounts**: registration and login (bcrypt + JWT). Each user's sources, index, chat history and settings are private.
+- **Providers**: `.env` sets the defaults; each user can switch answer model, embeddings and vision between local and OpenAI. Their API key is stored encrypted.
 
-- PDF
-- DOCX
-- PNG/JPG/JPEG/WEBP OCR
-- MP3/WAV/M4A/AAC/FLAC transcription
-- MP4/AVI/MOV/MKV/WEBM audio transcription + frame OCR
-- HTML tables and page text
-- Public website URLs
+## Requirements
 
-## Important behavior
+- Python 3.11+
+- [Ollama](https://ollama.com) for local mode: `ollama pull llama3.2:3b` and, for image understanding, `ollama pull qwen2.5vl:3b`
+- [FFmpeg](https://ffmpeg.org) for audio/video
+- [Tesseract](https://github.com/UB-Mannheim/tesseract/wiki) for OCR
 
-The current knowledge base is **replace-mode**: processing a new upload set replaces the session's previous knowledge base. Multiple files and multiple URLs can be submitted together.
+Local embedding, reranker and Whisper models download automatically on first use (~1.6 GB total).
 
-The assistant follows the project's grounding rule: **No evidence -> No answer.** The LLM is used to transform retrieved evidence into a response, not as an independent source of facts.
-
-Structured deployment-dashboard questions use exact metadata filtering. The dashboard group date is stored as `deployment_group_date`; the date inside a Git Script filename is stored separately as `script_date`.
-
-## Setup on Windows
+## Setup
 
 ```powershell
-cd C:\RAG_HTML_CHATBOT
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-```
-
-Install/run Ollama and pull the configured model:
-
-```powershell
-ollama pull llama3.2:3b
-ollama serve
-```
-
-Configure `.env` from `.env.example`. For the user's existing local installation, Tesseract and FFmpeg paths may be needed:
-
-```text
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2:3b
-EMBEDDING_MODEL=BAAI/bge-base-en-v1.5
-TESSERACT_PATH=C:\Path\to\tesseract.exe
-FFMPEG_PATH=C:\Path\to\ffmpeg.exe
+copy .env.example .env      # then edit as needed
 ```
 
 ## Run
@@ -87,72 +38,100 @@ FFMPEG_PATH=C:\Path\to\ffmpeg.exe
 uvicorn backend.main:app --reload
 ```
 
-Open the browser at:
+Open http://127.0.0.1:8000, create an account, add sources, ask questions.
+
+## Using OpenAI
+
+Either set it for everyone in `.env`:
 
 ```text
-http://127.0.0.1:8000
+LLM_PROVIDER=openai
+EMBEDDING_PROVIDER=openai      # optional; "local" keeps retrieval on this machine
+OPENAI_API_KEY=sk-...
 ```
 
-## Frontend structure
+or let each user pick **OpenAI** in Settings and paste their own key. `OPENAI_BASE_URL` points it at any OpenAI-compatible endpoint (Azure OpenAI gateway, LiteLLM, vLLM, LM Studio).
 
-```text
-frontend/
-├── index.html       # page structure
-├── css/style.css    # all visual styling
-└── js/
-    ├── api.js       # HTTP calls to FastAPI
-    └── app.js       # chat, upload, state, UI behavior
+Embeddings and the index must match: after switching the embedding provider, the library shows a **Re-index** prompt. Until you re-index, search keeps using the embedder the index was built with, so nothing breaks.
+
+## Storage
+
+Everything is stored under `DATA_DIR` (default `data/`: database, uploads, generated secrets) and `VECTORSTORE_DIR` (default `vectorstore/`). Back these up. Point them elsewhere to run a second instance without sharing data:
+
+```powershell
+$env:DATA_DIR="D:\rag-test\data"; $env:VECTORSTORE_DIR="D:\rag-test\vectorstore"
+ag-test\data"; $env:VECTORSTORE_DIR="D:
+ag-testectorstore"
+uvicorn backend.main:app --port 8010
 ```
 
-## Backend structure
+Databases from older versions are upgraded automatically; earlier chat history appears as "Earlier chat".
+
+## Performance notes
+
+On CPU, a local 3B model needs roughly 10–25 s before the first token appears. Most of that is the model reading the evidence. Ways to speed it up:
+
+- Use OpenAI (typically 1–2 s to the first token), or a GPU for Ollama.
+- Lower `MAX_CONTEXT_CHARS` or `CONTEXT_CHUNKS`.
+
+Video and image descriptions with `qwen2.5vl:3b` take about 15–60 s per image on CPU. `VIDEO_VISION_FRAMES` caps how many frames get a description; the rest use OCR only.
+
+## Project structure
 
 ```text
 backend/
-└── main.py          # FastAPI routes + per-session KB state
+  main.py            API routes, chat streaming, file links
+  auth.py            register / login / tokens
+  user_settings.py   per-user provider settings (/api/settings)
+  library.py         per-user FAISS + BM25 index; add / remove / re-index
+  jobs.py            background ingestion queue
+  database.py        SQLite: users, sources, chunks, messages, settings
+  crypto.py          encryption for saved API keys
+src/
+  providers.py       Ollama / OpenAI chat, embeddings, vision
+  ingestion/         one extractor per format
+  processing/        chunking (transcript windows, row groups, text splits)
+  retrieval/         BM25, reranker, citations
+  vector/            hybrid search + evidence selection
+  rag_pipeline.py    query rewrite -> retrieve -> cited, streamed answer
+frontend/            index.html, css/style.css, js/app.js, js/markdown.js
+tests/               pytest suite (no models or network needed)
 ```
 
-The RAG modules remain under `src/`, so the frontend is not coupled to ingestion, embeddings, retrieval, or generation internals.
+## Tests
 
-## API examples
+```powershell
+python -m pytest tests
+```
 
-Health:
+The suite uses deterministic fake embeddings and a fake LLM, and runs the real OpenAI client against a local fake OpenAI server. It needs no models, keys or network access.
+
+## API
+
+All routes except health, register and login need `Authorization: Bearer <token>`.
 
 ```text
-GET /api/health
+POST   /api/auth/register | /api/auth/login     {"username","password"}
+GET    /api/auth/me
+GET    /api/sources                             library + processing status
+POST   /api/sources                             multipart: files=..., urls=..., youtube=...
+DELETE /api/sources/{id}
+POST   /api/sources/{id}/retry
+GET    /api/sources/{id}/link                   short-lived URL to the original file
+POST   /api/library/reindex
+POST   /api/chat/stream                         NDJSON: sources, token..., done | error
+POST   /api/chat                                same, non-streaming
+                                         body: {question, conversation_id?, source_ids?}
+GET    /api/conversations
+GET    /api/conversations/{id}                  messages + saved source scope
+PATCH  /api/conversations/{id}                  {title?, source_ids?}
+DELETE /api/conversations/{id}
+GET    /api/settings | PUT /api/settings | POST /api/settings/test
 ```
 
-Create session:
+## Security notes
 
-```text
-POST /api/session
-```
-
-Process knowledge base:
-
-```text
-POST /api/knowledge/process
-multipart/form-data:
-  session_id=<id>
-  urls=<one URL per line>
-  files=<one or more files>
-```
-
-Chat:
-
-```json
-POST /api/chat
-{
-  "session_id": "...",
-  "question": "Under 20260929 which files are executed in AXQA?"
-}
-```
-
-## Future extensions
-
-1. SSE/WebSocket streaming for token-by-token responses.
-2. Persistent sessions instead of in-memory state.
-3. Better conversational query rewriting for structured follow-ups such as “what about TPQA?”.
-4. Optional reranking.
-5. Neo4j/Graphiti graph retrieval as an additive retrieval path.
-6. OpenAI provider behind the same generation interface.
-7. Authentication and multi-user isolation for deployment.
+- Passwords: bcrypt. Sessions: JWT (`JWT_SECRET`, 8 h by default).
+- Saved API keys: encrypted with `APP_ENCRYPTION_KEY` (or `DATA_DIR/.encryption_key`). They are never returned to the browser.
+- Website sources cannot reach localhost or private networks unless `ALLOW_PRIVATE_URLS=true`.
+- Not yet included: login rate limiting, and restricting which `OPENAI_BASE_URL` users may set. Add both before exposing the app to untrusted users. Serve behind HTTPS.

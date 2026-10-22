@@ -10,32 +10,11 @@ from src.retrieval.citation_formatter import get_unique_citations
 UPLOAD_DIR = Path("data/uploads")
 
 SUPPORTED_TYPES = [
-<<<<<<< Updated upstream
-    "pdf",
-    "docx",
-    "png",
-    "jpg",
-    "jpeg",
-    "webp",
-    "mp3",
-    "wav",
-    "m4a",
-    "aac",
-    "flac",
-    "mp4",
-    "avi",
-    "mov",
-    "mkv",
-    "webm",
-    "html",
-    "htm",
-=======
     "pdf", "docx",
     "png", "jpg", "jpeg", "webp",
     "mp3", "wav", "m4a", "aac", "flac",
     "mp4", "avi", "mov", "mkv", "webm",
     "html", "htm",
->>>>>>> Stashed changes
 ]
 
 

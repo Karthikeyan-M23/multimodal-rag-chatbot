@@ -2,174 +2,373 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>Multimodal RAG Chatbot</title>
-
-    <link
-        rel="stylesheet"
-        href="css/style.css"
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
+    <title>Multimodal RAG</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 24V9l7 9 7-9v15' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="css/style.css">
+    <script>
+        // Apply the saved theme before first paint to avoid a flash.
+        try {
+            const theme = localStorage.getItem("rag_theme");
+            if (theme) document.documentElement.dataset.theme = theme;
+        } catch (error) {}
+    </script>
 </head>
 
 <body>
 
-    <div class="app">
+    <!-- ======================= Auth ======================= -->
+    <div id="authView" class="auth-view" hidden>
 
-        <!-- Sidebar -->
-        <aside class="sidebar">
+        <div class="auth-bg" aria-hidden="true">
+            <span class="blob blob-1"></span>
+            <span class="blob blob-2"></span>
+            <span class="blob blob-3"></span>
+            <div class="auth-grid"></div>
+            <div id="authFloaters" class="floaters"></div>
+        </div>
 
-            <div class="brand">
-                <h1>Multimodal RAG</h1>
+        <div class="auth-layout">
 
-                <p>
-                    Document-grounded AI assistant
-                </p>
-            </div>
+        <section class="auth-hero">
+            <span class="eyebrow"><span class="pulse-dot"></span>Multimodal RAG</span>
+            <h2>Ask your <span class="rotator"><span id="authRotator">documents</span></span></h2>
+            <p>Grounded answers from PDFs, spreadsheets, meetings, videos, YouTube and websites, with a citation for every claim.</p>
+            <ul class="hero-points">
+                <li><span data-icon="check"></span>Cites the exact page, row or timestamp</li>
+                <li><span data-icon="check"></span>Runs locally or on OpenAI</li>
+                <li><span data-icon="check"></span>Your library stays private to your account</li>
+            </ul>
+        </section>
 
+        <form id="authForm" class="auth-card" autocomplete="on" novalidate>
 
-            <section class="knowledge-section">
+            <div class="brand-mark large" aria-hidden="true">M</div>
 
-                <h2>Knowledge Sources</h2>
+            <h1 id="authTitle">Welcome back</h1>
+            <p id="authSubtitle" class="muted">Sign in to your knowledge workspace</p>
 
+            <label class="field">
+                <span>Username</span>
+                <input id="authUsername" type="text" autocomplete="username" maxlength="32" required>
+            </label>
 
-                <label class="file-label">
-                    Upload files
+            <label class="field">
+                <span>Password</span>
+                <input id="authPassword" type="password" autocomplete="current-password" required>
+            </label>
 
-                    <input
-                        id="fileInput"
-                        type="file"
-                        multiple
-                        accept="
-                            .pdf,
-                            .docx,
-                            .png,
-                            .jpg,
-                            .jpeg,
-                            .webp,
-                            .mp3,
-                            .wav,
-                            .m4a,
-                            .aac,
-                            .flac,
-                            .mp4,
-                            .avi,
-                            .mov,
-                            .mkv,
-                            .webm
-                        "
-                    >
-                </label>
+            <p id="authHint" class="hint" hidden>At least 8 characters.</p>
 
+            <div id="authError" class="form-error" role="alert"></div>
 
-                <div
-                    id="selectedFiles"
-                    class="selected-files"
-                >
-                    No files selected.
-                </div>
+            <button id="authSubmit" class="btn btn-primary btn-block" type="submit">Sign in</button>
 
+            <p class="auth-switch">
+                <span id="authSwitchText">Don't have an account?</span>
+                <button id="authToggle" class="link" type="button">Create one</button>
+            </p>
 
-                <label for="websiteUrl">
-                    Website URL
-                </label>
+        </form>
 
-                <input
-                    id="websiteUrl"
-                    type="url"
-                    placeholder="https://example.com/article"
-                >
-
-
-                <button
-                    id="processButton"
-                    class="primary-button"
-                >
-                    Process Knowledge
-                </button>
-
-
-                <div
-                    id="processingStatus"
-                    class="status"
-                ></div>
-
-            </section>
-
-        </aside>
-
-
-        <!-- Main Chat -->
-        <main class="main">
-
-            <header class="chat-header">
-
-                <div>
-                    <h2>Chat</h2>
-
-                    <p>
-                        Ask questions about your
-                        processed knowledge sources.
-                    </p>
-                </div>
-
-                <div
-                    id="connectionStatus"
-                    class="connection-status"
-                >
-                    Checking backend...
-                </div>
-
-            </header>
-
-
-            <section
-                id="chatMessages"
-                class="chat-messages"
-            >
-
-                <div class="welcome-message">
-
-                    <h2>
-                        Welcome 👋
-                    </h2>
-
-                    <p>
-                        Upload documents or add a website,
-                        process them, and then ask questions.
-                    </p>
-
-                </div>
-
-            </section>
-
-
-            <section class="chat-input-area">
-
-                <textarea
-                    id="questionInput"
-                    placeholder="Ask a question about your knowledge base..."
-                    rows="1"
-                ></textarea>
-
-                <button
-                    id="askButton"
-                    class="send-button"
-                >
-                    Ask
-                </button>
-
-            </section>
-
-        </main>
+        </div>
 
     </div>
 
 
+    <!-- ======================= App ======================= -->
+    <div id="appView" class="app" hidden>
+
+        <!-- Sidebar -->
+        <aside id="sidebar" class="sidebar">
+
+            <div class="sidebar-top">
+                <div class="brand">
+                    <div class="brand-mark" aria-hidden="true">M</div>
+                    <div>
+                        <div class="brand-name">Multimodal RAG</div>
+                        <div class="brand-sub">Knowledge assistant</div>
+                    </div>
+                </div>
+                <button id="sidebarClose" class="icon-btn mobile-only" type="button" aria-label="Close sidebar"></button>
+            </div>
+
+            <div class="sidebar-tabs" role="tablist">
+                <button id="tabChats" class="sidebar-tab active" type="button" role="tab" aria-selected="true" data-tab="chats">
+                    <span data-icon="chat"></span>Chats <span id="chatCount" class="count-badge">0</span>
+                </button>
+                <button id="tabLibrary" class="sidebar-tab" type="button" role="tab" aria-selected="false" data-tab="library">
+                    <span data-icon="library"></span>Library <span id="libraryCount" class="count-badge">0</span>
+                </button>
+            </div>
+
+            <!-- Chats panel -->
+            <section id="chatsPanel" class="sidebar-panel" role="tabpanel">
+
+                <div class="panel-actions">
+                    <button id="newChatButton" class="btn btn-secondary btn-block new-chat" type="button">
+                        <span data-icon="plus"></span>New chat
+                    </button>
+                </div>
+
+                <ul id="conversationList" class="conversation-list"></ul>
+
+                <div id="chatsEmpty" class="library-empty">
+                    No conversations yet. Ask a question to start one.
+                </div>
+
+            </section>
+
+            <!-- Library panel -->
+            <section id="libraryPanel" class="sidebar-panel" role="tabpanel" hidden>
+
+                <div class="add-sources">
+
+                    <div id="dropZone" class="drop-zone" tabindex="0" role="button" aria-label="Upload files">
+                        <span class="drop-icon" data-icon="upload"></span>
+                        <div>
+                            <strong>Drop files or click to upload</strong>
+                            <span class="muted small">PDF, Word, Excel, CSV, images, audio, video, HTML</span>
+                        </div>
+                        <input id="fileInput" type="file" multiple hidden>
+                    </div>
+
+                    <form id="urlForm" class="url-form">
+                        <span class="input-icon" data-icon="web"></span>
+                        <input id="urlInput" type="url" placeholder="Website URL" aria-label="Website URL">
+                        <button class="btn btn-secondary" type="submit">Add</button>
+                    </form>
+
+                    <form id="youtubeForm" class="url-form">
+                        <span class="input-icon youtube" data-icon="youtube"></span>
+                        <input id="youtubeInput" type="url" placeholder="YouTube link" aria-label="YouTube link">
+                        <button class="btn btn-secondary" type="submit">Add</button>
+                    </form>
+
+                </div>
+
+                <div id="reindexBanner" class="banner" hidden></div>
+
+                <ul id="sourceList" class="source-list" aria-live="polite"></ul>
+
+                <div id="libraryEmpty" class="library-empty">
+                    No sources yet. Upload files or add a website or YouTube link to start.
+                </div>
+
+            </section>
+
+            <div class="sidebar-footer">
+                <div class="user-chip">
+                    <div id="userAvatar" class="avatar"></div>
+                    <span id="userName" class="user-name"></span>
+                </div>
+                <div class="footer-actions">
+                    <button id="themeToggle" class="icon-btn" type="button" aria-label="Toggle theme" title="Toggle theme"></button>
+                    <button id="settingsButton" class="icon-btn" type="button" aria-label="Settings" title="Settings"></button>
+                    <button id="logoutButton" class="icon-btn" type="button" aria-label="Sign out" title="Sign out"></button>
+                </div>
+            </div>
+
+        </aside>
+
+        <div id="sidebarScrim" class="scrim mobile-only" hidden></div>
+
+
+        <!-- Main -->
+        <main class="main">
+
+            <header class="topbar">
+                <button id="sidebarOpen" class="icon-btn mobile-only" type="button" aria-label="Open sidebar"></button>
+                <div class="topbar-title">
+                    <h2 id="chatTitle">New chat</h2>
+                    <span id="modelBadge" class="model-badge" title="Answer model"></span>
+                </div>
+                <div class="topbar-actions">
+                    <span id="connection" class="connection" title="Server status"></span>
+                    <button id="clearChat" class="btn btn-ghost" type="button"><span data-icon="plus"></span>New chat</button>
+                </div>
+            </header>
+
+            <section id="messages" class="messages" aria-live="polite">
+
+                <div id="emptyState" class="empty-state">
+                    <div class="brand-mark large" aria-hidden="true">M</div>
+                    <h3>Ask anything about your sources</h3>
+                    <p class="muted">Answers are grounded in your library and cite the exact page, sheet row, or timestamp.</p>
+                    <div class="suggestions">
+                        <button class="suggestion" type="button">Summarize the key points across my sources</button>
+                        <button class="suggestion" type="button">What dates and deadlines are mentioned?</button>
+                        <button class="suggestion" type="button">List the people and their responsibilities</button>
+                    </div>
+                </div>
+
+            </section>
+
+            <form id="composer" class="composer">
+                <div class="composer-box">
+                    <textarea id="questionInput" rows="1" placeholder="Ask a question about your library…" aria-label="Question"></textarea>
+                    <div class="composer-row">
+                        <div class="scope">
+                            <button id="scopeButton" class="scope-btn" type="button" aria-haspopup="true" aria-expanded="false">
+                                <span data-icon="library"></span>
+                                <span id="scopeLabel">All sources</span>
+                                <span data-icon="chevron"></span>
+                            </button>
+                            <div id="scopeMenu" class="scope-menu" hidden>
+                                <div class="scope-head">
+                                    <strong>Search in</strong>
+                                    <button id="scopeAll" class="link small" type="button">All sources</button>
+                                </div>
+                                <input id="scopeFilter" type="text" placeholder="Filter sources…" aria-label="Filter sources">
+                                <ul id="scopeList" class="scope-list"></ul>
+                                <div id="scopeEmpty" class="scope-empty" hidden>No ready sources yet.</div>
+                            </div>
+                        </div>
+                        <span class="composer-hint">Enter to send · Shift + Enter for a new line</span>
+                        <button id="sendButton" class="send-btn" type="submit" aria-label="Send"></button>
+                    </div>
+                </div>
+            </form>
+
+        </main>
+
+
+        <!-- Source preview -->
+        <aside id="previewPanel" class="preview" hidden aria-label="Source preview">
+            <header class="preview-header">
+                <div class="preview-title">
+                    <span id="previewIcon" class="type-icon"></span>
+                    <div>
+                        <div id="previewName" class="preview-name"></div>
+                        <div id="previewLocation" class="muted small"></div>
+                    </div>
+                </div>
+                <button id="previewClose" class="icon-btn" type="button" aria-label="Close preview"></button>
+            </header>
+            <div id="previewMedia" class="preview-media"></div>
+            <div class="preview-section-label">Cited passage</div>
+            <blockquote id="previewText" class="preview-text"></blockquote>
+            <div id="previewActions" class="preview-actions"></div>
+        </aside>
+
+    </div>
+
+
+    <!-- ======================= Settings ======================= -->
+    <div id="settingsModal" class="modal" hidden>
+        <div class="modal-backdrop" data-close></div>
+
+        <form id="settingsForm" class="modal-card" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+
+            <header class="modal-header">
+                <div>
+                    <h3 id="settingsTitle">Settings</h3>
+                    <p class="muted small">Choose local models or a cloud provider. Applies to your account only.</p>
+                </div>
+                <button class="icon-btn" type="button" data-close aria-label="Close"></button>
+            </header>
+
+            <div class="modal-body">
+
+                <section class="setting-group">
+                    <div class="setting-head">
+                        <h4>Answer model</h4>
+                        <p class="muted small">Generates answers and rewrites follow-up questions.</p>
+                    </div>
+                    <div class="segmented" role="radiogroup">
+                        <label><input type="radio" name="llm_provider" value="ollama"><span>Local · Ollama</span></label>
+                        <label><input type="radio" name="llm_provider" value="openai"><span>OpenAI</span></label>
+                    </div>
+                    <label class="field">
+                        <span>Model</span>
+                        <input name="llm_model" type="text" autocomplete="off" spellcheck="false">
+                    </label>
+                </section>
+
+                <section class="setting-group">
+                    <div class="setting-head">
+                        <h4>Embeddings</h4>
+                        <p class="muted small">Used to index and search your library. Changing it requires re-indexing.</p>
+                    </div>
+                    <div class="segmented" role="radiogroup">
+                        <label><input type="radio" name="embedding_provider" value="local"><span>Local · BGE</span></label>
+                        <label><input type="radio" name="embedding_provider" value="openai"><span>OpenAI</span></label>
+                    </div>
+                    <label class="field">
+                        <span>Model</span>
+                        <input name="embedding_model" type="text" autocomplete="off" spellcheck="false">
+                    </label>
+                </section>
+
+                <section class="setting-group">
+                    <div class="setting-head row">
+                        <div>
+                            <h4>Image understanding</h4>
+                            <p class="muted small">Describe images and video frames with a vision model, in addition to OCR. Uses the answer model's provider.</p>
+                        </div>
+                        <label class="switch">
+                            <input name="vision_enabled" type="checkbox">
+                            <span></span>
+                        </label>
+                    </div>
+                    <label class="field">
+                        <span>Vision model</span>
+                        <input name="vision_model" type="text" autocomplete="off" spellcheck="false">
+                    </label>
+                </section>
+
+                <section id="openaiGroup" class="setting-group">
+                    <div class="setting-head">
+                        <h4>OpenAI credentials</h4>
+                        <p id="openaiKeyStatus" class="muted small"></p>
+                    </div>
+                    <label class="field">
+                        <span>API key</span>
+                        <input name="openai_api_key" type="password" autocomplete="off" placeholder="sk-…" spellcheck="false">
+                    </label>
+                    <label class="field">
+                        <span>Base URL <em class="muted">(optional, for OpenAI-compatible APIs)</em></span>
+                        <input name="openai_base_url" type="url" placeholder="https://api.openai.com/v1" spellcheck="false">
+                    </label>
+                    <button id="removeKey" class="link danger small" type="button" hidden>Remove saved key</button>
+                </section>
+
+                <div id="testResults" class="test-results" hidden></div>
+                <div id="settingsError" class="form-error" role="alert"></div>
+
+            </div>
+
+            <footer class="modal-footer">
+                <button id="testSettings" class="btn btn-secondary" type="button">Test connection</button>
+                <div class="spacer"></div>
+                <button class="btn btn-ghost" type="button" data-close>Cancel</button>
+                <button id="saveSettings" class="btn btn-primary" type="submit">Save</button>
+            </footer>
+
+        </form>
+    </div>
+
+
+    <!-- ======================= Confirm ======================= -->
+    <div id="confirmModal" class="modal" hidden>
+        <div class="modal-backdrop" data-close></div>
+        <div class="modal-card small" tabindex="-1" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle">
+            <div class="modal-body">
+                <h3 id="confirmTitle"></h3>
+                <p id="confirmText" class="muted"></p>
+            </div>
+            <footer class="modal-footer">
+                <div class="spacer"></div>
+                <button class="btn btn-ghost" type="button" data-close>Cancel</button>
+                <button id="confirmOk" class="btn btn-danger" type="button">Delete</button>
+            </footer>
+        </div>
+    </div>
+
+    <div id="toasts" class="toasts" aria-live="assertive"></div>
+
+    <script src="js/markdown.js"></script>
     <script src="js/app.js"></script>
 
 </body>

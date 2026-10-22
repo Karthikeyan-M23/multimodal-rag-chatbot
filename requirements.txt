@@ -1,35 +1,42 @@
+# Web
 fastapi
 uvicorn[standard]
 python-multipart
 pydantic
 
+# Auth
+PyJWT
+bcrypt
+cryptography
+
+# LLM / embeddings
 langchain
 langchain-community
 langchain-ollama
+langchain-openai
 langchain-huggingface
 langchain-text-splitters
-
-pymupdf
-python-docx
-
-pillow
-pytesseract
-
-faster-whisper
-
 sentence-transformers
 torch
 torchvision
 
+# Retrieval
 faiss-cpu
+rank-bm25
+numpy
 
-python-dotenv
+# Ingestion
+pymupdf
+python-docx
+openpyxl
+pillow
+pytesseract
+faster-whisper
+youtube-transcript-api
+yt-dlp
 requests
 beautifulsoup4
+python-dotenv
 
-
-fastapi
-uvicorn
-python-multipart
-
-rank-bm25
+# Tests
+pytest
