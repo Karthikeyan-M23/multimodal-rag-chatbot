@@ -35,6 +35,7 @@ faster-whisper
 youtube-transcript-api
 yt-dlp
 requests
+requests_ntlm
 beautifulsoup4
 python-dotenv
 

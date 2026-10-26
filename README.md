@@ -6,7 +6,7 @@ Runs fully local (Ollama + local embeddings) or on OpenAI (or any OpenAI-compati
 
 ## Features
 
-- **Sources**: PDF (scanned pages are OCR'd), DOCX (sections + tables), XLSX/CSV, images (OCR + vision description), audio (Whisper transcript), video (transcript + keyframe OCR/description), HTML, websites (including linked PDFs), YouTube (captions with timestamps and chapters; falls back to downloading and transcribing the audio), TXT/MD.
+- **Sources**: PDF (scanned pages are OCR'd), DOCX (sections + tables), XLSX/CSV, images (OCR + vision description), audio (Whisper transcript), video (transcript + keyframe OCR/description), HTML, websites (including linked PDFs), YouTube (captions with timestamps and chapters; falls back to downloading and transcribing the audio), sign-in protected websites, TFS / Azure DevOps work items assigned to you, TXT/MD.
 - **Retrieval**: hybrid vector (FAISS) + keyword (BM25) search, reciprocal rank fusion, cross-encoder reranking (`BAAI/bge-reranker-base`), relevance cutoff that refuses to answer from unrelated passages. Follow-up questions ("what is its budget?") are rewritten before searching.
 - **Answers**: streamed token by token with numbered citations `[n]`. Clicking a citation opens the passage, and plays audio/video/YouTube from the cited timestamp or opens a PDF at the page.
 - **Library**: per-user, additive. Sources are processed in the background with live status, and can be removed or retried.
@@ -53,6 +53,15 @@ OPENAI_API_KEY=sk-...
 or let each user pick **OpenAI** in Settings and paste their own key. `OPENAI_BASE_URL` points it at any OpenAI-compatible endpoint (Azure OpenAI gateway, LiteLLM, vLLM, LM Studio).
 
 Embeddings and the index must match: after switching the embedding provider, the library shows a **Re-index** prompt. Until you re-index, search keeps using the embedder the index was built with, so nothing breaks.
+
+## Protected websites and TFS
+
+Turn on **Requires sign-in** under the website field; username and password are then required. They are stored encrypted with the source (for **Refresh**) and only sent to that site's host.
+
+- Supported: HTTP Basic and Windows sign-in (NTLM / Negotiate, e.g. intranet IIS, SharePoint on-prem). Use `DOMAIN\username` for Windows accounts.
+- Not supported: sites with an HTML login form or single sign-on / MFA. These fail with a clear message.
+- **TFS / Azure DevOps** links (`https://dev.azure.com/<org>/<project>`, `https://<org>.visualstudio.com/<project>`, `http://<server>/tfs/<Collection>/<Project>`) are imported through the REST API: every work item assigned to you (all states), with fields, description, repro steps, acceptance criteria and discussion. Each ticket is cited as `#id Title` and links back to TFS. Sign in with a Personal Access Token (scope *Work Items: Read*, any username) or, on-prem, your Windows account. Use **Refresh** on the source to pick up new or changed tickets.
+- Intranet servers are on a private network, which is blocked by default. Allow yours with `PRIVATE_URL_ALLOWLIST=tfs.company.local` (preferred) or `ALLOW_PRIVATE_URLS=true`.
 
 ## Storage
 
@@ -114,9 +123,10 @@ All routes except health, register and login need `Authorization: Bearer <token>
 POST   /api/auth/register | /api/auth/login     {"username","password"}
 GET    /api/auth/me
 GET    /api/sources                             library + processing status
-POST   /api/sources                             multipart: files=..., urls=..., youtube=...
+POST   /api/sources                             multipart: files=..., urls=..., youtube=...,
+                                                 auth_enabled, auth_username, auth_password (for urls)
 DELETE /api/sources/{id}
-POST   /api/sources/{id}/retry
+POST   /api/sources/{id}/retry                  retry a failed source, or refresh a link source
 GET    /api/sources/{id}/link                   short-lived URL to the original file
 POST   /api/library/reindex
 POST   /api/chat/stream                         NDJSON: sources, token..., done | error

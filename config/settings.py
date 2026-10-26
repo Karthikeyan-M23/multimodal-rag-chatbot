@@ -172,6 +172,17 @@ MAX_UPLOAD_MB = _int("MAX_UPLOAD_MB", 500)
 # Allow the server to fetch localhost / private-network URLs.
 ALLOW_PRIVATE_URLS = _bool("ALLOW_PRIVATE_URLS", False)
 
+# Private-network hosts that are allowed anyway, comma-separated
+# (e.g. "tfs.company.local,wiki.company.local").
+PRIVATE_URL_ALLOWLIST = {
+    host.strip().lower()
+    for host in os.getenv("PRIVATE_URL_ALLOWLIST", "").split(",")
+    if host.strip()
+}
+
+# Upper bound on work items imported from one TFS / Azure DevOps source.
+TFS_MAX_WORK_ITEMS = _int("TFS_MAX_WORK_ITEMS", 2000)
+
 
 # --------------------------------------------------
 # Storage

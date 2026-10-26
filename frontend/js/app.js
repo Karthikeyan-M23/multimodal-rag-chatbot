@@ -44,6 +44,9 @@ const ICONS = {
     check: '<path d="m5 12 5 5 9-10"/>',
     alert: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>',
     external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
+    tfs: '<rect x="4" y="4" width="16" height="17" rx="2"/><path d="M9 4V3h6v1M8 10h8M8 14h8M8 18h5"/>',
+    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+    refresh: '<path d="M4 12a8 8 0 0 1 14-5.3L20 9M20 4v5h-5M20 12a8 8 0 0 1-14 5.3L4 15M4 20v-5h5"/>',
     youtube: '<rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="m10 9 5 3-5 3z" fill="currentColor"/>',
     chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>',
     library: '<path d="M4 19V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM10 19V5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1z"/><path d="m16.5 5.5 3 .8a1 1 0 0 1 .7 1.2l-3.3 12.2"/>',
@@ -348,7 +351,7 @@ function typeLabel(source) {
     return {
         pdf: "PDF", docx: "Word", excel: "Excel", csv: "CSV", image: "Image",
         audio: "Audio", video: "Video", web: "Website", html: "HTML", text: "Text",
-        youtube: "YouTube"
+        youtube: "YouTube", tfs: "TFS"
     }[source.file_type] || source.file_type.toUpperCase();
 }
 
@@ -362,6 +365,9 @@ function statusText(source) {
     if (source.status === "queued") return "Waiting…";
     return source.progress || "Processing…";
 }
+
+// Link sources can be re-fetched to pick up changes (e.g. new TFS tickets).
+const REFRESHABLE = new Set(["url", "tfs", "youtube"]);
 
 function renderSources() {
 
@@ -385,6 +391,7 @@ function renderSources() {
                     <div class="source-meta">
                         <span class="status-dot ${source.status}"></span>
                         <span class="${failed ? "error-text" : ""}" title="${escapeHtml(statusText(source))}">${escapeHtml(statusText(source))}</span>
+                        ${source.has_auth ? `<span class="signed-in" title="Signed in with saved credentials">${icon("lock", 11)}</span>` : ""}
                     </div>
                     ${source.note ? `<div class="source-note">${escapeHtml(source.note)}</div>` : ""}
                     ${busy ? `<div class="progress-bar ${progressValue === null ? "indeterminate" : ""}"><span style="${progressValue !== null ? `width:${progressValue}%` : ""}"></span></div>` : ""}
@@ -392,6 +399,7 @@ function renderSources() {
                 ${source.status === "uploading" ? "" : `
                 <div class="source-actions">
                     ${failed ? `<button class="icon-btn" data-action="retry" title="Retry" aria-label="Retry">${icon("retry", 14)}</button>` : ""}
+                    ${source.status === "ready" && REFRESHABLE.has(source.kind) ? `<button class="icon-btn" data-action="retry" title="Refresh from source" aria-label="Refresh">${icon("refresh", 14)}</button>` : ""}
                     <button class="icon-btn" data-action="delete" title="Remove" aria-label="Remove">${icon("trash", 14)}</button>
                 </div>`}
             </li>`;
@@ -607,7 +615,7 @@ window.addEventListener("drop", event => event.preventDefault());
 
 const YOUTUBE_LINK = /^https?:\/\/(www\.|m\.|music\.)?(youtube\.com|youtu\.be)\/\S+$/i;
 
-function bindLinkForm(formId, inputId, field, validate) {
+function bindLinkForm(formId, inputId, field, validate, extend = () => "") {
 
     $(formId).addEventListener("submit", async event => {
 
@@ -615,14 +623,14 @@ function bindLinkForm(formId, inputId, field, validate) {
 
         const input = $(inputId);
         const url = input.value.trim();
-        const problem = validate(url);
+        const form = new FormData();
+        const problem = validate(url) || extend(form);
 
         if (problem) {
             toast(problem, "error");
             return;
         }
 
-        const form = new FormData();
         form.append(field, url);
 
         const button = $(formId).querySelector("button");
@@ -631,6 +639,7 @@ function bindLinkForm(formId, inputId, field, validate) {
         try {
             await api("/api/sources", { method: "POST", body: form });
             input.value = "";
+            $(formId).dispatchEvent(new Event("added"));
             await loadSources();
         } catch (error) {
             toast(error.message, "error");
@@ -640,8 +649,54 @@ function bindLinkForm(formId, inputId, field, validate) {
     });
 }
 
-bindLinkForm("urlForm", "urlInput", "urls", url =>
-    /^https?:\/\/\S+$/i.test(url) ? "" : "Enter a full URL starting with http:// or https://"
+const TFS_LINK = /^https?:\/\/([^/]+\.)?(dev\.azure\.com|visualstudio\.com)\/|\/tfs\/|\/_(workitems|boards|backlogs|queries|sprints)\b/i;
+
+bindLinkForm(
+    "urlForm",
+    "urlInput",
+    "urls",
+    url => /^https?:\/\/\S+$/i.test(url) ? "" : "Enter a full URL starting with http:// or https://",
+    form => {
+
+        const enabled = $("siteAuthEnabled").checked;
+        const username = $("siteUsername");
+        const password = $("sitePassword");
+
+        if (!enabled) {
+            return TFS_LINK.test($("urlInput").value)
+                ? "TFS / Azure DevOps needs sign-in. Turn on \"Requires sign-in\"."
+                : "";
+        }
+
+        username.classList.toggle("invalid", !username.value.trim());
+        password.classList.toggle("invalid", !password.value);
+
+        if (!username.value.trim() || !password.value) {
+            return "Username and password are required when sign-in is enabled.";
+        }
+
+        form.append("auth_enabled", "true");
+        form.append("auth_username", username.value.trim());
+        form.append("auth_password", password.value);
+        return "";
+    }
+);
+
+$("siteAuthEnabled").addEventListener("change", event => {
+    $("siteAuthFields").hidden = !event.target.checked;
+    if (event.target.checked) $("siteUsername").focus();
+});
+
+// Don't keep credentials in the form after they've been sent.
+$("urlForm").addEventListener("added", () => {
+    $("siteUsername").value = "";
+    $("sitePassword").value = "";
+    $("siteAuthEnabled").checked = false;
+    $("siteAuthFields").hidden = true;
+});
+
+["siteUsername", "sitePassword"].forEach(id =>
+    $(id).addEventListener("input", () => $(id).classList.remove("invalid"))
 );
 
 bindLinkForm("youtubeForm", "youtubeInput", "youtube", url =>
@@ -1339,8 +1394,12 @@ async function openPreview(source) {
         media.appendChild(image);
     }
 
-    const target = source.file_type === "pdf" && source.page ? `${url}#page=${source.page}` : url;
-    const label = source.file_type === "web" ? "Open website" : "Open original";
+    let target = source.file_type === "pdf" && source.page ? `${url}#page=${source.page}` : url;
+
+    // TFS citations link to the exact ticket.
+    if (source.file_type === "tfs" && source.url) target = source.url;
+
+    const label = { web: "Open website", tfs: "Open in TFS" }[source.file_type] || "Open original";
 
     const anchor = document.createElement("a");
     anchor.className = "btn btn-secondary";

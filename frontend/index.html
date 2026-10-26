@@ -134,10 +134,24 @@
                         <input id="fileInput" type="file" multiple hidden>
                     </div>
 
-                    <form id="urlForm" class="url-form">
-                        <span class="input-icon" data-icon="web"></span>
-                        <input id="urlInput" type="url" placeholder="Website URL" aria-label="Website URL">
-                        <button class="btn btn-secondary" type="submit">Add</button>
+                    <form id="urlForm" class="link-form" autocomplete="off">
+                        <div class="url-form">
+                            <span class="input-icon" data-icon="web"></span>
+                            <input id="urlInput" type="url" placeholder="Website or TFS URL" aria-label="Website or TFS URL">
+                            <button class="btn btn-secondary" type="submit">Add</button>
+                        </div>
+                        <label class="auth-toggle">
+                            <span class="switch small">
+                                <input id="siteAuthEnabled" type="checkbox">
+                                <span></span>
+                            </span>
+                            Requires sign-in
+                        </label>
+                        <div id="siteAuthFields" class="auth-fields" hidden>
+                            <input id="siteUsername" type="text" placeholder="Username (or DOMAIN\username)" aria-label="Username" autocomplete="off" spellcheck="false">
+                            <input id="sitePassword" type="password" placeholder="Password or access token" aria-label="Password" autocomplete="new-password">
+                            <p class="hint">Basic and Windows sign-in. For TFS / Azure DevOps, a Personal Access Token works as the password. Stored encrypted.</p>
+                        </div>
                     </form>
 
                     <form id="youtubeForm" class="url-form">

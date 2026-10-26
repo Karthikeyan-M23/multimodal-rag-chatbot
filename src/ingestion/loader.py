@@ -9,6 +9,7 @@ from src.ingestion.video_processor import extract_video_content
 from src.ingestion.web_processor import extract_web_content
 from src.ingestion.html_processor import extract_html_content
 from src.ingestion.youtube_processor import extract_youtube_content
+from src.ingestion.tfs_processor import extract_tfs_work_items
 
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".gif"}
@@ -114,8 +115,12 @@ def load_document(file_path: str, describe=None, progress=None) -> list[dict]:
     raise ValueError(f"Unsupported file type: {extension}")
 
 
-def load_web_document(url: str, progress=None) -> list[dict]:
-    return extract_web_content(url, progress)
+def load_web_document(url: str, progress=None, username: str = "", password: str = "") -> list[dict]:
+    return extract_web_content(url, progress, username, password)
+
+
+def load_tfs_work_items(url: str, progress=None, username: str = "", password: str = "") -> list[dict]:
+    return extract_tfs_work_items(url, username, password, progress)
 
 
 def load_youtube_video(url: str, progress=None) -> list[dict]:

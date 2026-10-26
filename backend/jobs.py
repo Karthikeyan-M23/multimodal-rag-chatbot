@@ -4,15 +4,21 @@ and local embedding are CPU-bound, so running them in parallel only
 makes every job slower.
 """
 
+import json
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from backend import database
+from backend import crypto, database
 from backend.library import get_library
 from backend.user_settings import get_user_config
-from src.ingestion.loader import load_document, load_web_document, load_youtube_video
+from src.ingestion.loader import (
+    load_document,
+    load_tfs_work_items,
+    load_web_document,
+    load_youtube_video,
+)
 from src.processing.chunker import create_chunks
 from src.providers import get_image_describer
 
@@ -23,6 +29,18 @@ _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ingest")
 
 # Minimum seconds between progress writes for one source.
 PROGRESS_INTERVAL = 0.75
+
+
+def source_credentials(source) -> dict:
+    """{"username", "password"} for a protected URL source, else {}."""
+
+    if not source["auth_enc"]:
+        return {}
+
+    try:
+        return json.loads(crypto.decrypt(source["auth_enc"]) or "{}")
+    except ValueError:
+        return {}
 
 
 def _progress_writer(source_id: str):
@@ -96,8 +114,12 @@ def process_source(user_id: int, source_id: str):
         config = get_user_config(user_id)
         library = get_library(user_id)
 
+        credentials = source_credentials(source)
+
         if source["kind"] == "url":
-            documents = load_web_document(source["location"], progress)
+            documents = load_web_document(source["location"], progress, **credentials)
+        elif source["kind"] == "tfs":
+            documents = load_tfs_work_items(source["location"], progress, **credentials)
         elif source["kind"] == "youtube":
             documents = load_youtube_video(source["location"], progress)
         else:
@@ -117,7 +139,7 @@ def process_source(user_id: int, source_id: str):
         name = source["name"]
 
         # Use the page / video title as the display name.
-        if source["kind"] in {"url", "youtube"} and documents[0]["metadata"].get("title"):
+        if source["kind"] in {"url", "youtube", "tfs"} and documents[0]["metadata"].get("title"):
             name = documents[0]["metadata"]["title"][:200]
             database.update_source(source_id, name=name)
 

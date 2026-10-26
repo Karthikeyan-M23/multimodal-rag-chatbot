@@ -20,7 +20,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from backend import database, jobs
+from backend import crypto, database, jobs
 from backend.auth import (
     create_file_token,
     get_current_user,
@@ -31,6 +31,7 @@ from backend.library import get_library, upload_dir
 from backend.user_settings import get_user_config, router as settings_router
 from config import settings
 from src.ingestion.loader import SUPPORTED_EXTENSIONS, file_type_for
+from src.ingestion.tfs_processor import is_tfs_url
 from src.ingestion.youtube_processor import watch_url, youtube_video_id
 from src.providers import build_config, get_embeddings
 from src.rag_pipeline import stream_answer
@@ -175,8 +176,15 @@ async def add_sources(
     files: List[UploadFile] = File(default=[]),
     urls: List[str] = Form(default=[]),
     youtube: List[str] = Form(default=[]),
+    auth_enabled: bool = Form(default=False),
+    auth_username: str = Form(default="", max_length=200),
+    auth_password: str = Form(default="", max_length=1000),
     user=Depends(get_current_user),
 ):
+    """
+    auth_*: sign-in for the website URLs in this request (Basic or
+    Windows/NTLM; for TFS a Personal Access Token works as the password).
+    """
 
     user_id = user["id"]
 
@@ -222,6 +230,25 @@ async def add_sources(
         if not url.lower().startswith(("http://", "https://")):
             raise HTTPException(400, f"{url}: URL must start with http:// or https://")
 
+    auth_enc = ""
+
+    if auth_enabled and clean_urls:
+
+        if not auth_username.strip() or not auth_password:
+            raise HTTPException(400, "Username and password are required when sign-in is enabled.")
+
+        auth_enc = crypto.encrypt(
+            json.dumps({"username": auth_username.strip(), "password": auth_password})
+        )
+
+    for url in clean_urls:
+        if is_tfs_url(url) and not auth_enc:
+            raise HTTPException(
+                400,
+                f"{url}: TFS / Azure DevOps needs sign-in. Turn on \"Requires sign-in\" "
+                "and use a Personal Access Token (or your Windows password).",
+            )
+
     created = []
 
     for uploaded_file in named_files:
@@ -257,7 +284,11 @@ async def add_sources(
 
     for url in clean_urls:
 
-        source = database.create_source(user_id, "url", url, "web", location=url)
+        kind, file_type = ("tfs", "tfs") if is_tfs_url(url) else ("url", "web")
+
+        source = database.create_source(
+            user_id, kind, url, file_type, location=url, auth_enc=auth_enc
+        )
         created.append(source["id"])
 
     for video_id in video_ids:
@@ -327,7 +358,7 @@ def source_link(source_id: str, user=Depends(get_current_user)):
 
     source = _owned_source(user["id"], source_id)
 
-    if source["kind"] == "url":
+    if source["kind"] in {"url", "tfs"}:
         return {"url": source["location"]}
 
     if source["kind"] == "youtube":

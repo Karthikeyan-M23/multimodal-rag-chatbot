@@ -102,6 +102,15 @@ def init_db():
         connection.execute("PRAGMA journal_mode = WAL")
         connection.executescript(SCHEMA)
         _migrate_messages_to_conversations(connection)
+        _add_column(connection, "sources", "auth_enc", "TEXT NOT NULL DEFAULT ''")
+
+
+def _add_column(connection, table, column, definition):
+
+    columns = {row["name"] for row in connection.execute(f"PRAGMA table_info({table})")}
+
+    if column not in columns:
+        connection.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def _migrate_messages_to_conversations(connection):
@@ -317,19 +326,24 @@ SOURCE_FIELDS = (
 
 
 def public_source(row) -> dict:
-    return {field: row[field] for field in SOURCE_FIELDS}
+    # Credentials never leave the server; only whether there are any.
+    return {
+        **{field: row[field] for field in SOURCE_FIELDS},
+        "has_auth": bool(row["auth_enc"]),
+    }
 
 
-def create_source(user_id, kind, name, file_type, location, size_bytes=0):
+def create_source(user_id, kind, name, file_type, location, size_bytes=0, auth_enc=""):
+    """auth_enc: encrypted sign-in credentials for protected URLs."""
 
     source_id = uuid.uuid4().hex
 
     with connect() as connection:
         connection.execute(
             "INSERT INTO sources "
-            "(id, user_id, kind, name, file_type, location, size_bytes) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (source_id, user_id, kind, name, file_type, location, size_bytes),
+            "(id, user_id, kind, name, file_type, location, size_bytes, auth_enc) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (source_id, user_id, kind, name, file_type, location, size_bytes, auth_enc),
         )
 
     return get_source(user_id, source_id)

@@ -2126,3 +2126,81 @@ textarea::placeholder {
     .hero-points li { opacity: 1; }
     .floaters { display: none; }
 }
+
+
+/* ---------- Protected website sign-in ---------- */
+
+.link-form {
+    margin-top: 8px;
+}
+
+.link-form .url-form {
+    margin-top: 0;
+}
+
+.auth-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+
+.switch.small {
+    width: 28px;
+    height: 16px;
+    margin-top: 0;
+}
+
+.switch.small span::after {
+    top: 2px;
+    left: 2px;
+    width: 12px;
+    height: 12px;
+}
+
+.switch.small input:checked + span::after {
+    transform: translateX(12px);
+}
+
+.auth-fields {
+    display: grid;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    animation: pop 0.14s ease-out;
+}
+
+.auth-fields input {
+    height: 32px;
+    font-size: 13px;
+}
+
+.auth-fields input.invalid {
+    border-color: var(--danger);
+}
+
+.auth-fields .hint {
+    margin: 2px 0 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+}
+
+.type-icon[data-type="tfs"] { --tone: #0078d4; }
+
+.signed-in {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.signed-in svg.icon {
+    width: 11px;
+    height: 11px;
+}
