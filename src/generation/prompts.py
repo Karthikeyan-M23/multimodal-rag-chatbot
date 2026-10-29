@@ -1,3 +1,5 @@
+from datetime import date
+
 from langchain_core.prompts import ChatPromptTemplate
 
 
@@ -30,10 +32,14 @@ def format_evidence(sources: list[dict]) -> str:
     return "\n\n---\n\n".join(blocks)
 
 
-def user_message(question: str, sources: list[dict]) -> str:
+def user_message(question: str, sources: list[dict], today: str | None = None) -> str:
+
+    # Lets the model resolve "today", "yesterday", "last week".
+    today = today or date.today().isoformat()
 
     return (
         f"Sources:\n\n{format_evidence(sources)}\n\n"
+        f"Today's date: {today}\n\n"
         f"Question: {question}\n\n"
         "Answer using only the sources above, with [n] citations."
     )

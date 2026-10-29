@@ -1,4 +1,5 @@
 import re
+from datetime import date, timedelta
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
@@ -27,6 +28,36 @@ FOLLOW_UP = re.compile(
     r"|^\s*(and|also|what about|how about|why|more|then)\b",
     re.IGNORECASE,
 )
+
+
+RELATIVE_DAYS = {
+    "day before yesterday": -2,
+    "yesterday": -1,
+    "today": 0,
+    "tomorrow": 1,
+}
+
+RELATIVE_DAY = re.compile(
+    r"\b(" + "|".join(RELATIVE_DAYS) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def with_absolute_dates(query: str, today: date | None = None) -> str:
+    """
+    Sources store dates (2026-10-28), not "yesterday". Append the date the
+    word means so keyword search can match it.
+    """
+
+    match = RELATIVE_DAY.search(query)
+
+    if not match:
+        return query
+
+    today = today or date.today()
+    day = today + timedelta(days=RELATIVE_DAYS[match.group(1).lower()])
+
+    return f"{query} {day.isoformat()}"
 
 
 def needs_rewrite(question: str) -> bool:
@@ -156,7 +187,10 @@ def stream_answer(config, search, question: str, history: list[dict] | None = No
 
     query = rewrite_query(config, question, history)
 
-    documents = limit_context(search(query, question), settings.MAX_CONTEXT_CHARS)
+    documents = limit_context(
+        search(with_absolute_dates(query), question),
+        settings.MAX_CONTEXT_CHARS,
+    )
 
     sources = to_sources(documents)
 

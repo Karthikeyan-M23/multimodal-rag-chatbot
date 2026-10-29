@@ -5,6 +5,8 @@ from rank_bm25 import BM25Okapi
 
 TOKEN_PATTERN = re.compile(r"[a-z0-9]+(?:[._-][a-z0-9]+)*")
 
+PART_SEPARATOR = re.compile(r"[._-]")
+
 STOPWORDS = frozenset(
     """
     a an and are as at be but by for from has have how i in is it its of on
@@ -18,16 +20,23 @@ def tokenize(text: str) -> list[str]:
 
     tokens = []
 
-    for token in TOKEN_PATTERN.findall(text.lower()):
+    for compound in TOKEN_PATTERN.findall(text.lower()):
 
-        if token in STOPWORDS:
-            continue
+        # Keep "005_product_data" whole for exact matches, and its parts
+        # so a query for "product data" still finds it.
+        parts = PART_SEPARATOR.split(compound)
+        words = [compound] + parts if len(parts) > 1 else [compound]
 
-        # Light plural folding so "invoices" matches "invoice".
-        if len(token) > 4 and token.endswith("s") and not token.endswith("ss"):
-            token = token[:-1]
+        for token in words:
 
-        tokens.append(token)
+            if not token or token in STOPWORDS:
+                continue
+
+            # Light plural folding so "invoices" matches "invoice".
+            if len(token) > 4 and token.endswith("s") and not token.endswith("ss"):
+                token = token[:-1]
+
+            tokens.append(token)
 
     return tokens
 

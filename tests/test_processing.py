@@ -71,8 +71,49 @@ def test_timestamp_format():
 
 
 def test_tokenizer_handles_punctuation_plurals_and_ids():
-    assert tokenize("Invoices for INV-2024.07, please!") == ["invoice", "inv-2024.07", "please"]
+    # IDs stay whole for exact matches and also yield their parts.
+    assert tokenize("Invoices for INV-2024.07, please!") == [
+        "invoice", "inv-2024.07", "inv", "2024", "07", "please",
+    ]
     assert "the" not in tokenize("the zebra")
+    assert {"product", "data"} <= set(tokenize("002_Usecases/005_Product_Data/"))
+
+
+def test_div_grid_rows_are_extracted_with_tooltips(tmp_path):
+    from src.ingestion.html_processor import extract_html_content
+
+    row = (
+        '<div class="row"><div class="script">{name}.sql</div>'
+        '<div class="cell" title="AXQA: deployed 2026-10-28 13:03"><span>28 Oct</span></div>'
+        '<div class="cell" title="CI: not deployed"><span>-</span></div></div>'
+    )
+    page = tmp_path / "dashboard.html"
+    page.write_text(
+        "<html><body><h1>Dashboard</h1><details><summary>20261028</summary>"
+        + "".join(row.format(name=f"product_data_{n}") for n in range(3))
+        + "</details></body></html>",
+        encoding="utf-8",
+    )
+
+    documents = extract_html_content(str(page))
+    records = [d for d in documents if d["metadata"].get("record_type") == "html_records"]
+
+    assert len(records) == 1
+    assert records[0]["metadata"]["section"] == "20261028"
+    assert (
+        "product_data_0.sql | AXQA: deployed 2026-10-28 13:03 (28 Oct) | CI: not deployed"
+        in records[0]["text"]
+    )
+
+
+def test_relative_dates_are_resolved_for_search():
+    from datetime import date
+
+    from src.rag_pipeline import with_absolute_dates
+
+    today = date(2026, 10, 29)
+    assert with_absolute_dates("scripts run yesterday?", today) == "scripts run yesterday? 2026-10-28"
+    assert with_absolute_dates("scripts per folder", today) == "scripts per folder"
 
 
 def test_bm25_ignores_non_matching_chunks():
